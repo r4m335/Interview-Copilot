@@ -1,0 +1,166 @@
+/* Extension popup — minimal dark theme */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 320px;
+  min-height: 400px;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+.popup-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.popup-header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #666;
+}
+
+.status-dot.capturing {
+  background: #4caf50;
+  box-shadow: 0 0 8px #4caf5088;
+  animation: pulse 1.5s infinite;
+}
+
+.status-dot.error {
+  background: #f44336;
+  box-shadow: 0 0 8px #f4433688;
+}
+
+.status-dot.stopped {
+  background: #ff9800;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.popup-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 16px;
+  gap: 16px;
+}
+
+.status-text {
+  font-size: 14px;
+  color: #aaa;
+  text-align: center;
+}
+
+.session-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.session-id {
+  font-size: 14px;
+  color: #888;
+}
+
+.session-id strong {
+  color: #e0e0e0;
+  font-family: "Courier New", monospace;
+  font-size: 18px;
+  letter-spacing: 2px;
+}
+
+.qr-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: #0f0f23;
+  border-radius: 12px;
+  border: 1px solid #2a2a4a;
+}
+
+.qr-label {
+  font-size: 11px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.viewer-url {
+  font-size: 11px;
+  word-break: break-all;
+  text-align: center;
+}
+
+.viewer-url a {
+  color: #64b5f6;
+  text-decoration: none;
+}
+
+.viewer-url a:hover {
+  text-decoration: underline;
+}
+
+.controls {
+  margin-top: auto;
+  width: 100%;
+}
+
+.btn-start,
+.btn-stop {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-start {
+  background: #4caf50;
+  color: white;
+}
+
+.btn-start:hover {
+  background: #43a047;
+  transform: translateY(-1px);
+}
+
+.btn-stop {
+  background: #f44336;
+  color: white;
+}
+
+.btn-stop:hover {
+  background: #e53935;
+}
