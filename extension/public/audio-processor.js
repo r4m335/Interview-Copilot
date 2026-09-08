@@ -9,8 +9,8 @@ class VADProcessor extends AudioWorkletProcessor {
     // VAD settings
     this.isSpeaking = false;
     this.silenceCounter = 0;
-    this.SILENCE_CHUNKS = 10; // ~850ms of silence
-    this.RMS_THRESHOLD = 0.005;
+    this.SILENCE_CHUNKS = 20; // ~1.7s of silence
+    this.RMS_THRESHOLD = 0.001;
   }
 
   process(inputs, outputs, parameters) {

@@ -53,7 +53,11 @@ class QuestionSegmenter:
         if not text:
             return
 
-        self._pending_text = text
+        if self._pending_text:
+            self._pending_text += " " + text
+        else:
+            self._pending_text = text
+            
         self._last_update_time = timestamp or time.time()
 
         # Cancel existing timer

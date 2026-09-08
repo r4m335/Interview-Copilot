@@ -8,11 +8,11 @@ interface Props {
 export default function AnswerCard({ answer, isStreaming }: Props) {
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll as answer streams in
+  // Disabled auto-scroll so the Key Point and start of answer remain visible
   useEffect(() => {
-    if (contentRef.current && isStreaming) {
-      contentRef.current.scrollTop = contentRef.current.scrollHeight;
-    }
+    // if (contentRef.current && isStreaming) {
+    //   contentRef.current.scrollTop = contentRef.current.scrollHeight;
+    // }
   }, [answer, isStreaming]);
 
   if (!answer) return null;
