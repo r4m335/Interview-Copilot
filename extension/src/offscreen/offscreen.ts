@@ -18,16 +18,6 @@ let mediaStream: MediaStream | null = null;
 let wsClient: WebSocket | null = null;
 let sequenceNumber = 0;
 
-// --- VAD parameters ---
-const VAD_ENERGY_THRESHOLD = 0.005; // RMS energy threshold for speech detection
-const VAD_PRE_ROLL_FRAMES = 4; // ~200ms at 50ms per frame
-const VAD_POST_ROLL_FRAMES = 10; // ~500ms at 50ms per frame
-
-let vadSpeechFrames = 0; // Consecutive frames above threshold
-let vadSilenceFrames = 0; // Consecutive frames below threshold
-let vadIsSpeaking = false;
-let vadPreRollBuffer: ArrayBuffer[] = [];
-
 // --- Audio processing ---
 
 async function startCapture(
@@ -69,6 +59,7 @@ async function startCapture(
 
     wsClient.onerror = (e) => {
       console.error("WebSocket error:", e);
+      chrome.runtime.sendMessage({ type: "offscreen-stopped" });
       chrome.runtime.sendMessage({
         type: "capture-status",
         status: "error",
@@ -78,88 +69,32 @@ async function startCapture(
 
     wsClient.onclose = () => {
       console.log("WebSocket closed");
+      chrome.runtime.sendMessage({ type: "offscreen-stopped" });
     };
 
-    // 4. Use ScriptProcessorNode for audio processing
-    // (AudioWorklet would be ideal but requires separate file loading
-    // which is complex in an offscreen document — using ScriptProcessor
-    // for V1 simplicity, will migrate to AudioWorklet in V2)
-    const bufferSize = 4096;
-    const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+    // 4. Use AudioWorkletNode for modern, non-blocking audio processing
+    const workletUrl = chrome.runtime.getURL('audio-processor.js');
+    await audioContext.audioWorklet.addModule(workletUrl);
+    const workletNode = new AudioWorkletNode(audioContext, 'vad-processor');
 
-    // Downsample ratio: 48000 → 16000 (3:1)
-    const DOWNSAMPLE_RATIO = 3;
-    const TARGET_SAMPLE_RATE = 16000;
-
-    processor.onaudioprocess = (event: AudioProcessingEvent) => {
-      const inputData = event.inputBuffer.getChannelData(0);
-
-      // Downsample 48kHz → 16kHz (simple decimation)
-      const downsampled = new Float32Array(
-        Math.floor(inputData.length / DOWNSAMPLE_RATIO)
-      );
-      for (let i = 0; i < downsampled.length; i++) {
-        downsampled[i] = inputData[i * DOWNSAMPLE_RATIO];
-      }
-
-      // Calculate RMS energy for VAD
-      let sumSquares = 0;
-      for (let i = 0; i < downsampled.length; i++) {
-        sumSquares += downsampled[i] * downsampled[i];
-      }
-      const rms = Math.sqrt(sumSquares / downsampled.length);
-
-      // Convert to PCM16
-      const pcm16 = new Int16Array(downsampled.length);
-      for (let i = 0; i < downsampled.length; i++) {
-        const s = Math.max(-1, Math.min(1, downsampled[i]));
-        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-      }
-
-      // VAD: energy-based with pre-roll / post-roll
-      const isSpeech = rms > VAD_ENERGY_THRESHOLD;
-
-      if (isSpeech) {
-        vadSpeechFrames++;
-        vadSilenceFrames = 0;
-
-        if (!vadIsSpeaking && vadSpeechFrames >= 2) {
-          // Speech started — send pre-roll buffer first
-          vadIsSpeaking = true;
-          for (const preRollFrame of vadPreRollBuffer) {
-            sendAudioFrame(preRollFrame);
-          }
-          vadPreRollBuffer = [];
-        }
-
-        if (vadIsSpeaking) {
-          sendAudioFrame(pcm16.buffer);
-        }
-      } else {
-        vadSpeechFrames = 0;
-        vadSilenceFrames++;
-
-        if (vadIsSpeaking) {
-          // Post-roll: keep sending for a bit after speech ends
-          if (vadSilenceFrames <= VAD_POST_ROLL_FRAMES) {
-            sendAudioFrame(pcm16.buffer);
-          } else {
-            vadIsSpeaking = false;
-          }
-        } else {
-          // Pre-roll: keep a rolling buffer of recent silence
-          vadPreRollBuffer.push(pcm16.buffer.slice(0));
-          if (vadPreRollBuffer.length > VAD_PRE_ROLL_FRAMES) {
-            vadPreRollBuffer.shift();
-          }
-        }
+    workletNode.port.onmessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (data.event === 'speech_start') {
+        console.log("Speech started");
+      } else if (data.event === 'speech_end') {
+        console.log("Speech ended");
+        sendControlFrame("speech_end");
+      } else if (data.event === 'audio_data') {
+        sendAudioFrame(data.buffer);
+      } else if (data instanceof ArrayBuffer) {
+        sendAudioFrame(data);
       }
     };
 
-    source.connect(processor);
-    processor.connect(audioContext.destination);
+    source.connect(workletNode);
+    workletNode.connect(audioContext.destination);
 
-    console.log("Audio capture started");
+    console.log("Audio capture started via AudioWorklet");
   } catch (error) {
     console.error("Failed to start audio capture:", error);
     chrome.runtime.sendMessage({
@@ -189,6 +124,26 @@ function sendAudioFrame(pcmBuffer: ArrayBuffer): void {
   wsClient.send(frame.buffer);
 }
 
+function sendControlFrame(controlType: string): void {
+  if (!wsClient || wsClient.readyState !== WebSocket.OPEN) {
+    return;
+  }
+
+  const encoder = new TextEncoder();
+  const controlBytes = encoder.encode(controlType);
+  
+  const header = new ArrayBuffer(8);
+  const headerView = new DataView(header);
+  headerView.setUint32(0, 0xFFFFFFFF, true); // Control frame marker
+  headerView.setUint32(4, Date.now() & 0xffffffff, true);
+
+  const frame = new Uint8Array(header.byteLength + controlBytes.byteLength);
+  frame.set(new Uint8Array(header), 0);
+  frame.set(controlBytes, header.byteLength);
+
+  wsClient.send(frame.buffer);
+}
+
 function stopCapture(): void {
   if (wsClient) {
     wsClient.close();
@@ -206,10 +161,6 @@ function stopCapture(): void {
   }
 
   sequenceNumber = 0;
-  vadIsSpeaking = false;
-  vadSpeechFrames = 0;
-  vadSilenceFrames = 0;
-  vadPreRollBuffer = [];
 
   console.log("Audio capture stopped");
 }

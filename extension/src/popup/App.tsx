@@ -15,27 +15,17 @@ export default function App() {
   const [status, setStatus] = useState<CaptureStatus>("idle");
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [error, setError] = useState<string>("");
-  const [transcript, setTranscript] = useState<string>("");
+  const [tabTitle, setTabTitle] = useState<string | null>(null);
 
   // Load stored session on mount
   useEffect(() => {
-    chrome.storage.local.get(
-      ["sessionId", "hostToken", "viewerToken"],
-      (result) => {
-        if (result.sessionId) {
-          setSession({
-            sessionId: result.sessionId,
-            hostToken: result.hostToken,
-            viewerToken: result.viewerToken,
-          });
-        }
-      }
-    );
-
     // Check current capture status
     chrome.runtime.sendMessage({ type: "popup-status" }, (response) => {
       if (response?.isCapturing) {
         setStatus("capturing");
+        if (response.tabTitle) {
+          setTabTitle(response.tabTitle);
+        }
         if (response.sessionId) {
           chrome.storage.local.get(
             ["sessionId", "hostToken", "viewerToken"],
@@ -50,6 +40,8 @@ export default function App() {
             }
           );
         }
+      } else {
+        setStatus("idle");
       }
     });
   }, []);
@@ -59,6 +51,12 @@ export default function App() {
     const listener = (message: any) => {
       if (message.type === "capture-status") {
         setStatus(message.status);
+        if (message.tabTitle) {
+          setTabTitle(message.tabTitle);
+        }
+        if (message.status === "stopped" || message.status === "error") {
+          setTabTitle(null);
+        }
         if (message.detail && message.status === "error") {
           setError(message.detail);
         }
@@ -87,24 +85,33 @@ export default function App() {
   return (
     <div className="popup-container">
       <header className="popup-header">
-        <h1>Interview Copilot</h1>
+        <h1>INTERVIEW COPILOT</h1>
         <div className={`status-dot ${status}`} />
       </header>
 
       <div className="popup-body">
         {/* Status */}
         <div className="status-text">
-          {status === "idle" && "Ready to start"}
-          {status === "capturing" && "● Listening..."}
-          {status === "stopped" && "Stopped"}
+          {status === "idle" && "Not listening"}
+          {status === "capturing" && "● Listening"}
+          {status === "stopped" && "Not listening"}
           {status === "error" && `Error: ${error}`}
         </div>
+
+        {/* Active Tab Info */}
+        {status === "capturing" && tabTitle && (
+          <div className="active-tab-info">
+            <div className="info-label">Listening to:</div>
+            <div className="info-value">{tabTitle}</div>
+          </div>
+        )}
 
         {/* Session info + QR code */}
         {session && status === "capturing" && (
           <div className="session-info">
             <div className="session-id">
-              Session: <strong>{session.sessionId}</strong>
+              <div className="info-label" style={{textAlign: "center"}}>Session:</div>
+              <strong>{session.sessionId}</strong>
             </div>
 
             <div className="qr-container">
@@ -134,7 +141,7 @@ export default function App() {
             </button>
           ) : (
             <button className="btn-stop" onClick={handleStop}>
-              Stop
+              Stop Listening
             </button>
           )}
         </div>

@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # --- ASR ---
     asr_engine: str = "faster_whisper"
-    asr_model: str = "base.en"
+    asr_model: str = "large-v3-turbo"
 
     # --- LLM providers (priority: ollama → openrouter → groq) ---
     # Ollama

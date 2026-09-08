@@ -47,3 +47,7 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Agent/AI tools
+artifacts/
+scratch/

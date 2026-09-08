@@ -19,7 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.models.schemas import SessionCreate, SessionInfo
+from app.models.schemas import SessionCreate, SessionInfo, SessionCreateRequest
 from app.sessions.manager import session_manager
 from app.websocket.host import router as host_router
 from app.websocket.viewer import router as viewer_router
@@ -68,9 +68,10 @@ app.include_router(viewer_router)
 
 
 @app.post("/api/session", response_model=SessionCreate)
-async def create_session():
+async def create_session(request: SessionCreateRequest = None):
     """Create a new interview session."""
-    session = session_manager.create_session()
+    tab_title = request.tab_title if request else None
+    session = session_manager.create_session(tab_title=tab_title)
     logger.info(f"Session created: {session.session_id}")
     return SessionCreate(
         session_id=session.session_id,

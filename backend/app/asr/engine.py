@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, AsyncIterator
 
 import numpy as np
 
@@ -21,33 +21,30 @@ class TranscriptResult:
 
 class ASREngine(ABC):
     """
-    Abstract base class for speech recognition engines.
-
-    Implementations must provide:
-    - load_model(): Initialize the model
-    - transcribe(): Process audio and return transcript
-    - reset(): Clear internal state for a new utterance
+    Abstract base class for streaming speech recognition engines.
     """
 
     @abstractmethod
-    def load_model(self) -> None:
-        """Load the ASR model into memory."""
+    async def start(self) -> None:
+        """Initialize the engine and open connections."""
         ...
 
     @abstractmethod
-    def transcribe(self, audio: np.ndarray) -> Optional[TranscriptResult]:
-        """
-        Transcribe audio data.
-
-        Args:
-            audio: Float32 numpy array of audio samples (16kHz mono).
-
-        Returns:
-            TranscriptResult or None if no speech detected.
-        """
+    async def push_audio(self, pcm_data: bytes) -> None:
+        """Push raw PCM16 bytes into the engine."""
         ...
 
     @abstractmethod
-    def reset(self) -> None:
-        """Reset internal state for a new utterance."""
+    async def end_of_speech(self) -> None:
+        """Signal that the current utterance has ended (forces finalization)."""
+        ...
+
+    @abstractmethod
+    async def receive_transcripts(self) -> AsyncIterator[TranscriptResult]:
+        """Async generator yielding TranscriptResult objects as they arrive."""
+        yield TranscriptResult(text="", is_final=True) # type hint generator
+
+    @abstractmethod
+    async def stop(self) -> None:
+        """Close connections and cleanup."""
         ...

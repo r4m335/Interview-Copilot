@@ -15,7 +15,7 @@ export interface WSCallbacks {
   onAnswerStart: (question: string) => void;
   onAnswerDelta: (text: string) => void;
   onAnswerComplete: (question: string, fullText: string) => void;
-  onStatus: (state: string, detail: string) => void;
+  onStatus: (state: string, detail: string, tabTitle?: string) => void;
   onConnectionChange: (state: ConnectionState) => void;
 }
 
@@ -107,7 +107,7 @@ export class ViewerWSClient {
         this.callbacks.onAnswerComplete(msg.question, msg.full_text);
         break;
       case "status":
-        this.callbacks.onStatus(msg.state, msg.detail);
+        this.callbacks.onStatus(msg.state, msg.detail, msg.tab_title);
         break;
       default:
         console.warn("Unknown WS message type:", msg.type);

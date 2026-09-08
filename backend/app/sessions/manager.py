@@ -35,6 +35,7 @@ class Session:
     created_at: float = field(default_factory=time.time)
     expires_at: float = 0.0
     is_active: bool = True
+    tab_title: Optional[str] = None
 
     # Connected WebSocket clients
     host_ws: Optional[WebSocket] = field(default=None, repr=False)
@@ -75,7 +76,7 @@ class SessionManager:
         self._sessions: dict[str, Session] = {}
         self._cleanup_task: Optional[asyncio.Task] = None
 
-    def create_session(self) -> Session:
+    def create_session(self, tab_title: Optional[str] = None) -> Session:
         """Create a new session with random ID and tokens."""
         # Ensure unique ID
         session_id = _generate_id(settings.session_id_length)
@@ -86,6 +87,7 @@ class SessionManager:
             session_id=session_id,
             host_token=_generate_token(),
             viewer_token=_generate_token(),
+            tab_title=tab_title,
         )
         self._sessions[session_id] = session
         return session

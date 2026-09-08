@@ -25,7 +25,9 @@ export default function SessionPage() {
       <StatusBar
         sessionId={sessionId}
         connectionState={session.connectionState}
+        backendState={session.backendState}
         backendStatus={session.backendStatus}
+        tabTitle={session.tabTitle}
       />
 
       <main className="session-content">

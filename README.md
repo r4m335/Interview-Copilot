@@ -2,7 +2,7 @@
 
 Real-time programming interview assistant.
 
-Chrome extension captures tab audio → Python backend transcribes + generates answers → mobile web client displays on phone.
+Chrome extension captures tab audio → Python backend (Gemini Live ASR / faster-whisper fallback) → LLM generates answers → mobile web client displays on phone.
 
 ## Architecture
 
@@ -12,8 +12,9 @@ Google Meet / Teams / Zoom (browser tab)
 Chrome Extension (AudioWorklet + VAD)
         ↓ WebSocket (binary PCM 16kHz mono)
 FastAPI Backend
-        ↓ faster-whisper ASR
-        ↓ question detection
+        ↓ Gemini 3.5 Transcribe Live (Primary ASR)
+        ↓ faster-whisper (Fallback ASR)
+        ↓ question detection & heuristic scoring
         ↓ LLM (Ollama → OpenRouter → Groq)
         ↓ WebSocket (JSON)
 Phone Browser (/session/<id>)

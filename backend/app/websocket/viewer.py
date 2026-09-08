@@ -42,6 +42,7 @@ async def viewer_websocket(websocket: WebSocket, session_id: str):
             StatusMessage(
                 state=StatusState.LISTENING if session.host_ws else StatusState.IDLE,
                 detail="Connected" if session.host_ws else "Waiting for host...",
+                tab_title=session.tab_title if session.host_ws else None
             ).model_dump()
         )
 

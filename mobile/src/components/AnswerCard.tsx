@@ -27,6 +27,12 @@ export default function AnswerCard({ answer, isStreaming }: Props) {
         {isStreaming && <span className="streaming-indicator">●</span>}
       </div>
       <div className="card-content answer-text" ref={contentRef}>
+        {sections.keyPoint && (
+          <div className="answer-keypoint">
+            <div className="keypoint-label">KEY POINT</div>
+            <div className="keypoint-text">{sections.keyPoint}</div>
+          </div>
+        )}
         {sections.answer && (
           <div className="answer-section">{sections.answer}</div>
         )}
@@ -34,12 +40,6 @@ export default function AnswerCard({ answer, isStreaming }: Props) {
           <div className="answer-example">
             <div className="example-label">EXAMPLE</div>
             <pre className="example-code">{sections.example}</pre>
-          </div>
-        )}
-        {sections.keyPoint && (
-          <div className="answer-keypoint">
-            <div className="keypoint-label">KEY POINT</div>
-            <div className="keypoint-text">{sections.keyPoint}</div>
           </div>
         )}
         {/* If no sections parsed, show raw text */}

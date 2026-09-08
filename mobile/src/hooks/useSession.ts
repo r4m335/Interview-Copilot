@@ -18,7 +18,9 @@ export interface SessionState {
   currentQuestion: string;
   currentAnswer: string;
   isAnswering: boolean;
+  backendState: string;
   backendStatus: string;
+  tabTitle: string | null;
   history: QAPair[];
 }
 
@@ -32,7 +34,9 @@ export function useSession(sessionId: string): SessionState {
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [isAnswering, setIsAnswering] = useState(false);
+  const [backendState, setBackendState] = useState("");
   const [backendStatus, setBackendStatus] = useState("");
+  const [tabTitle, setTabTitle] = useState<string | null>(null);
   const [history, setHistory] = useState<QAPair[]>([]);
 
   const clientRef = useRef<ViewerWSClient | null>(null);
@@ -72,8 +76,12 @@ export function useSession(sessionId: string): SessionState {
         ]);
       },
 
-      onStatus: (_state, detail) => {
+      onStatus: (state, detail, title) => {
+        setBackendState(state);
         setBackendStatus(detail);
+        if (title !== undefined) {
+          setTabTitle(title);
+        }
       },
     };
 
@@ -94,7 +102,9 @@ export function useSession(sessionId: string): SessionState {
     currentQuestion,
     currentAnswer,
     isAnswering,
+    backendState,
     backendStatus,
+    tabTitle,
     history,
   };
 }

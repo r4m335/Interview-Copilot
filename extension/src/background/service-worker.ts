@@ -1,29 +1,21 @@
 /**
  * Service worker — extension lifecycle manager.
- *
- * Responsibilities:
- * - Handle popup commands (start/stop capture)
- * - Manage the offscreen document lifecycle
- * - Get tabCapture stream IDs
- * - Relay messages between popup and offscreen document
- * - Create sessions via backend API
  */
 
 const OFFSCREEN_URL = "src/offscreen/offscreen.html";
 const BACKEND_URL = "http://localhost:8000";
 
-let currentSessionId: string | null = null;
-let isCapturing = false;
-
 // --- Offscreen document management ---
 
-async function ensureOffscreenDocument(): Promise<void> {
-  // Check if offscreen doc already exists
+async function hasOffscreenDocument(): Promise<boolean> {
   const existingContexts = await chrome.runtime.getContexts({
     contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
   });
+  return existingContexts.length > 0;
+}
 
-  if (existingContexts.length > 0) {
+async function ensureOffscreenDocument(): Promise<void> {
+  if (await hasOffscreenDocument()) {
     return; // Already exists
   }
 
@@ -44,7 +36,7 @@ async function closeOffscreenDocument(): Promise<void> {
 
 // --- Session management ---
 
-async function createSession(): Promise<{
+async function createSession(tabTitle: string): Promise<{
   sessionId: string;
   hostToken: string;
   viewerToken: string;
@@ -52,6 +44,7 @@ async function createSession(): Promise<{
   const response = await fetch(`${BACKEND_URL}/api/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tab_title: tabTitle }),
   });
 
   if (!response.ok) {
@@ -69,24 +62,10 @@ async function createSession(): Promise<{
 // --- Tab capture ---
 
 async function startCapture(): Promise<void> {
-  if (isCapturing) {
-    console.warn("Already capturing");
-    return;
-  }
-
   try {
-    // 1. Create a session
-    const session = await createSession();
-    currentSessionId = session.sessionId;
+    // Check actual offscreen state
+    const currentlyCapturing = await hasOffscreenDocument();
 
-    // Store session info
-    await chrome.storage.local.set({
-      sessionId: session.sessionId,
-      hostToken: session.hostToken,
-      viewerToken: session.viewerToken,
-    });
-
-    // 2. Get the active tab
     const [tab] = await chrome.tabs.query({
       active: true,
       currentWindow: true,
@@ -96,7 +75,30 @@ async function startCapture(): Promise<void> {
       throw new Error("No active tab found");
     }
 
-    // 3. Get media stream ID for the tab
+    if (currentlyCapturing) {
+      const { capturedTabId } = await chrome.storage.local.get(["capturedTabId"]);
+      if (capturedTabId === tab.id) {
+        console.warn("Already capturing this tab");
+        return;
+      } else {
+        console.log("Switching capture to new tab");
+        await stopCapture();
+      }
+    }
+
+    // 1. Create a session
+    const session = await createSession(tab.title || "Unknown Tab");
+
+    // Store session info
+    await chrome.storage.local.set({
+      sessionId: session.sessionId,
+      hostToken: session.hostToken,
+      viewerToken: session.viewerToken,
+      capturedTabId: tab.id,
+      capturedTabTitle: tab.title || "Unknown Tab",
+    });
+
+    // 2. Get media stream ID for the tab
     const streamId = await new Promise<string>((resolve, reject) => {
       chrome.tabCapture.getMediaStreamId(
         { targetTabId: tab.id },
@@ -110,10 +112,10 @@ async function startCapture(): Promise<void> {
       );
     });
 
-    // 4. Create offscreen document
+    // 3. Create offscreen document
     await ensureOffscreenDocument();
 
-    // 5. Send capture command to offscreen document
+    // 4. Send capture command to offscreen document
     chrome.runtime.sendMessage({
       type: "start-capture",
       streamId,
@@ -121,13 +123,12 @@ async function startCapture(): Promise<void> {
       serverUrl: BACKEND_URL,
     });
 
-    isCapturing = true;
-
     // Notify popup
     chrome.runtime.sendMessage({
       type: "capture-status",
       status: "capturing",
       detail: `Session: ${session.sessionId}`,
+      tabTitle: tab.title || "Unknown Tab",
     });
 
     console.log(`Capture started — session: ${session.sessionId}`);
@@ -145,8 +146,8 @@ async function stopCapture(): Promise<void> {
   try {
     chrome.runtime.sendMessage({ type: "stop-capture" });
     await closeOffscreenDocument();
-    isCapturing = false;
-    currentSessionId = null;
+    
+    await chrome.storage.local.remove(["capturedTabId", "capturedTabTitle"]);
 
     chrome.runtime.sendMessage({
       type: "capture-status",
@@ -157,6 +158,22 @@ async function stopCapture(): Promise<void> {
   } catch (error) {
     console.error("Failed to stop capture:", error);
   }
+}
+
+async function getCaptureStatus(): Promise<any> {
+  const isCapturing = await hasOffscreenDocument();
+  if (!isCapturing) {
+    // Cleanup stale storage if offscreen document is dead
+    await chrome.storage.local.remove(["capturedTabId", "capturedTabTitle"]);
+    return { isCapturing: false, sessionId: null, tabTitle: null };
+  }
+  
+  const storage = await chrome.storage.local.get(["sessionId", "capturedTabTitle"]);
+  return {
+    isCapturing: true,
+    sessionId: storage.sessionId || null,
+    tabTitle: storage.capturedTabTitle || "Unknown Tab",
+  };
 }
 
 // --- Message handling ---
@@ -172,14 +189,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true;
 
     case "popup-status":
-      sendResponse({
-        isCapturing,
-        sessionId: currentSessionId,
-      });
-      return false;
+      getCaptureStatus().then(sendResponse);
+      return true; // Async response
 
     case "capture-status":
       // Relay from offscreen to popup — just let it propagate
+      return false;
+
+    case "offscreen-stopped":
+      stopCapture();
       return false;
   }
 });

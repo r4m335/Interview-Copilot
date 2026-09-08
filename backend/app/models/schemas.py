@@ -11,6 +11,11 @@ from pydantic import BaseModel, Field
 # Session
 # ---------------------------------------------------------------------------
 
+class SessionCreateRequest(BaseModel):
+    """Request to create a new session."""
+    tab_title: Optional[str] = None
+
+
 class SessionCreate(BaseModel):
     """Response when creating a new session."""
     session_id: str
@@ -88,6 +93,7 @@ class StatusMessage(BaseModel):
     type: str = WSMessageType.STATUS
     state: StatusState
     detail: str = ""
+    tab_title: Optional[str] = None
 
 
 class ErrorMessage(BaseModel):
